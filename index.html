@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CVC Match-Up Adventure</title>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --success: #22c55e;
+            --error: #ef4444;
+            --text-dark: #1e293b;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Comic Sans MS', 'Chalkboard SE', sans-serif;
+            
+            /* --- YOUR REQUESTED BACKGROUND (CLEAN LINK) --- */
+            background-image: url('https://m.media-amazon.com/images/I/71dNtlbI7fL._AC_UF894,1000_QL80_.jpg');
+            
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+            height: 100vh;
+        }
+
+        #game-board {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        /* UI Elements */
+        #header {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .score-pill {
+            background: rgba(255, 255, 255, 0.9);
+            color: var(--primary);
+            font-size: 2rem;
+            font-weight: bold;
+            padding: 10px 30px;
+            border-radius: 50px;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.2);
+            border: 4px solid var(--primary);
+        }
+
+        /* Floating Items */
+        .game-piece {
+            position: absolute;
+            width: 140px;
+            height: 140px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+            cursor: grab;
+            transition: transform 0.1s, background-color 0.3s;
+            z-index: 5;
+            border: 5px solid transparent;
+            backdrop-filter: blur(5px);
+        }
+
+        .word-piece {
+            font-size: 3rem;
+            font-weight: bold;
+            color: var(--text-dark);
+            border-color: #8b5cf6;
+        }
+
+        .pic-piece {
+            border-color: #f59e0b;
+        }
+
+        .pic-piece img {
+            width: 85%;
+            height: 85%;
+            object-fit: contain;
+            pointer-events: none;
+            border-radius: 15px;
+        }
+
+        /* Feedback Styles */
+        .correct-match {
+            background-color: var(--success) !important;
+            border-color: white !important;
+            color: white !important;
+            animation: pop 0.5s ease;
+            z-index: 2;
+        }
+
+        .wrong-match {
+            background-color: var(--error) !important;
+            border-color: white !important;
+            animation: shake 0.4s ease;
+        }
+
+        #feedback-overlay {
+            position: fixed;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 15rem; font-weight: bold;
+            pointer-events: none; opacity: 0; z-index: 100;
+            text-shadow: 4px 4px 10px rgba(0,0,0,0.3);
+        }
+
+        #win-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255, 255, 255, 0.85);
+            display: none; flex-direction: column;
+            align-items: center; justify-content: center;
+            z-index: 200;
+        }
+
+        button {
+            padding: 20px 50px; font-size: 2.5rem; font-family: inherit;
+            background: var(--primary); color: white; border: none; 
+            border-radius: 20px; cursor: pointer; box-shadow: 0 8px 0 #2563eb;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25= { transform: translateX(-15px); }
+            75% { transform: translateX(15px); }
+        }
+        @keyframes pop {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="header">
+        <div class="score-pill">Stars: <span id="star-count">0</span> ⭐</div>
+    </div>
+
+    <div id="game-board">
+        <div id="feedback-overlay"></div>
+    </div>
+
+    <div id="win-screen">
+        <h1>Great Reading! 🌟</h1>
+        <button onclick="startGame()">Next Round</button>
+    </div>
+
+<script>
+    const customList = [
+        { word: 'hen', pic: 'https://png.pngtree.com/png-vector/20240907/ourmid/pngtree-happy-cartoon-hen-with-eggs-clip-art-illustration-png-image_13776611.png' },
+        { word: 'ten', pic: 'https://thumb.ac-illust.com/a2/a242afe92768825bcc79fef433ef286d_t.jpeg' },
+        { word: 'men', pic: 'https://clipart-library.com/2023/business-men-talking-clipart-xl.png' },
+        { word: 'pen', pic: 'https://png.pngtree.com/png-vector/20240905/ourmid/pngtree-red-pen-clip-art-office-supplies-illustration-graphic-png-image_13760307.png' },
+        { word: 'van', pic: 'https://illustoon.com/photo/12882.png' },
+        { word: 'can', pic: 'https://img.freepik.com/premium-vector/soda-can-clip-art-vector-design-with-white-background_579306-12374.jpg?w=360' },
+        { word: 'ran', pic: 'https://clipart-library.com/newhp/285-2850681_boy-running-clipart.png' },
+        { word: 'man', pic: 'https://static.vecteezy.com/system/resources/thumbnails/070/075/644/small/young-man-business-casual-standing-and-presenting-illustration-vector.jpg' },
+        { word: 'fan', pic: 'https://illustoon.com/photo/11767.png' },
+        { word: 'yen', pic: 'https://www.shutterstock.com/image-vector/hand-holds-money-japanese-yen-260nw-1258803118.jpg' }
+    ];
+
+    const MATCH_PAUSE = 3000;      
+    const FINAL_PAUSE = 10000; // --- 10 second reading interval ---
+    const ITEMS_TO_SHOW = 6;       
+
+    let score = 0, pairsFound = 0, isPaused = false, draggedItem = null, dragOffset = {x:0, y:0};
+    const board = document.getElementById('game-board');
+    const synth = window.speechSynthesis;
+
+    // AUDIO ENGINE: Pre-fetching the best voice
+    let preferredVoice = null;
+    function loadVoices() {
+        const voices = synth.getVoices();
+        preferredVoice = voices.find(v => v.name.includes('Google') && v.lang.includes('en-US')) || 
+                         voices.find(v => v.lang.includes('en-US')) || 
+                         voices[0];
+    }
+    synth.onvoiceschanged = loadVoices;
+    loadVoices();
+
+    function playAudio(t, r, p = 1) {
+        synth.cancel(); // Stop current sounds immediately
+        const u = new SpeechSynthesisUtterance(t);
+        if (preferredVoice) u.voice = preferredVoice;
+        u.rate = r;
+        u.pitch = p;
+        synth.speak(u);
+    }
+
+    function startGame() {
+        board.innerHTML = '<div id="feedback-overlay"></div>';
+        document.getElementById('win-screen').style.display = 'none';
+        pairsFound = 0; isPaused = false;
+        
+        playAudio("Match the word to the correct picture!", 0.9, 1.1);
+
+        const selected = [...customList].sort(() => 0.5 - Math.random()).slice(0, ITEMS_TO_SHOW);
+        selected.forEach(item => {
+            createPiece(item.word, 'word', item.word);
+            createPiece(item.pic, 'pic', item.word);
+        });
+
+        animate();
+    }
+
+    function createPiece(content, type, matchId) {
+        const p = document.createElement('div');
+        p.className = `game-piece ${type}-piece`;
+        p.dataset.matchId = matchId;
+        p.dataset.type = type;
+        p.dataset.matched = "false";
+
+        if (type === 'pic') {
+            p.innerHTML = `<img src="${content}">`;
+        } else {
+            p.textContent = content;
+        }
+
+        p.style.left = `${Math.random() * (window.innerWidth - 160)}px`;
+        p.style.top = `${100 + Math.random() * (window.innerHeight - 260)}px`;
+        p.dataset.vx = (Math.random() - 0.5) * 1.5;
+        p.dataset.vy = (Math.random() - 0.5) * 1.5;
+
+        p.addEventListener('pointerdown', startDrag);
+        board.appendChild(p);
+    }
+
+    function startDrag(e) {
+        if (isPaused || e.target.closest('.game-piece').dataset.matched === "true") return;
+        draggedItem = e.target.closest('.game-piece');
+        draggedItem.style.zIndex = 1000;
+        const rect = draggedItem.getBoundingClientRect();
+        dragOffset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        draggedItem.setPointerCapture(e.pointerId);
+        draggedItem.addEventListener('pointermove', drag);
+        draggedItem.addEventListener('pointerup', endDrag);
+    }
+
+    function drag(e) { if (draggedItem) { draggedItem.style.left = `${e.clientX - dragOffset.x}px`; draggedItem.style.top = `${e.clientY - dragOffset.y}px`; } }
+
+    function endDrag(e) {
+        if (!draggedItem) return;
+        checkMatch();
+        draggedItem.releasePointerCapture(e.pointerId);
+        draggedItem.style.zIndex = 5;
+        draggedItem = null;
+    }
+
+    function checkMatch() {
+        const r1 = draggedItem.getBoundingClientRect();
+        const pieces = document.querySelectorAll('.game-piece');
+        for (let p of pieces) {
+            if (p === draggedItem || p.dataset.matched === "true") continue;
+            const r2 = p.getBoundingClientRect();
+            if (!(r1.right < r2.left || r1.left > r2.right || r1.bottom < r2.top || r1.top > r2.bottom)) {
+                if (draggedItem.dataset.matchId === p.dataset.matchId) {
+                    handleSuccess(draggedItem, p);
+                } else {
+                    handleError(draggedItem, p);
+                }
+                break;
+            }
+        }
+    }
+
+    function handleSuccess(a, b) {
+        isPaused = true;
+        a.dataset.matched = "true"; b.dataset.matched = "true";
+        a.classList.add('correct-match'); b.classList.add('correct-match');
+        
+        const midX = (parseFloat(a.style.left) + parseFloat(b.style.left)) / 2;
+        const midY = (parseFloat(a.style.top) + parseFloat(b.style.top)) / 2;
+        const w = a.dataset.type === 'word' ? a : b;
+        const pic = a.dataset.type === 'pic' ? a : b;
+        w.style.left = `${midX - 75}px`; pic.style.left = `${midX + 75}px`;
+        w.style.top = pic.style.top = `${midY}px`;
+
+        score++; document.getElementById('star-count').textContent = score;
+        pairsFound++;
+        showFeedback('✓', 'var(--success)');
+        playAudio(a.dataset.matchId, 0.75, 1);
+
+        setTimeout(() => {
+            isPaused = false;
+            if (pairsFound === ITEMS_TO_SHOW) {
+                isPaused = true; 
+                setTimeout(() => {
+                    document.getElementById('win-screen').style.display = 'flex';
+                    playAudio("Excellent reading!", 0.9, 1.1);
+                }, FINAL_PAUSE);
+            }
+        }, MATCH_PAUSE);
+    }
+
+    function handleError(a, b) {
+        a.classList.add('wrong-match'); b.classList.add('wrong-match');
+        showFeedback('✗', 'var(--error)');
+        playAudio("Try again", 1.2, 0.8);
+        setTimeout(() => { a.classList.remove('wrong-match'); b.classList.remove('wrong-match'); }, 500);
+    }
+
+    function showFeedback(s, c) {
+        const o = document.getElementById('feedback-overlay');
+        o.textContent = s; o.style.color = c; o.style.opacity = 1;
+        setTimeout(() => o.style.opacity = 0, 1000);
+    }
+
+    function animate() {
+        if (!isPaused) {
+            document.querySelectorAll('.game-piece').forEach(p => {
+                if (p.dataset.matched === "true" || p === draggedItem) return;
+                let x = parseFloat(p.style.left), y = parseFloat(p.style.top);
+                let vx = parseFloat(p.dataset.vx), vy = parseFloat(p.dataset.vy);
+                x += vx; y += vy;
+                if (x < 0 || x > window.innerWidth - 140) p.dataset.vx = vx * -1;
+                if (y < 80 || y > window.innerHeight - 140) p.dataset.vy = vy * -1;
+                p.style.left = `${x}px`; p.style.top = `${y}px`;
+            });
+        }
+        requestAnimationFrame(animate);
+    }
+
+    window.onload = startGame;
+</script>
+</body>
+</html>
